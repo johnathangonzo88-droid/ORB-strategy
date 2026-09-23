@@ -43,7 +43,7 @@ jobs:
       - name: Run ORB signal bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '8829416909' }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: python orb_signal_bot.py
 
