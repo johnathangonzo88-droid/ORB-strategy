@@ -1,0 +1,60 @@
+name: ORB Live Signals
+
+# Polls for ORB breakout signals every 15 minutes on weekdays and pushes any
+# that fire to Telegram. State (orb_state.json) is committed back to the repo
+# so each symbol only fires once per session, even across separate runs.
+#
+# Cron runs every 15 min, all day, Mon-Fri (UTC). The script itself is a
+# no-op outside each symbol's actual trading window, so this is safe but not
+# maximally CI-minute-efficient — narrow the hour range below if you want to
+# restrict it to roughly 08:00-17:00 ET (adjust for DST: UTC-4 in summer,
+# UTC-5 in winter).
+on:
+  schedule:
+    - cron: "*/15 * * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (log signals instead of sending to Telegram)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: orb-signals
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run ORB signal bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: python orb_signal_bot.py
+
+      - name: Commit updated state
+        run: |
+          git config user.name "cronus-orb-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if ! git diff --quiet -- orb_state.json; then
+            git add orb_state.json
+            git commit -m "chore: update orb_state.json [skip ci]"
+            git push
+          else
+            echo "No state change to commit."
+          fi
